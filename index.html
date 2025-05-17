@@ -1,0 +1,267 @@
+<!DOCTYPE html> <!-- Declare document type -->
+<html lang="en"> <!-- Declare language -->
+<head>
+    <meta charset="UTF-8"> <!-- Declare character set -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"> <!-- Make my site responsive -->
+    <link href="/static/favicon.png" rel="icon"> <!-- You gotta LOVE my favicon!!! -->
+    <link href="/static/styles.css" rel="stylesheet"> <!-- Make my site look like an old crt console -->
+    <title>Monkeyball</title> <!-- Title for browser and search engines -->
+</head>
+<body>
+    <div class="container">
+        <h1>Monkeyball</h1> <!-- Title for humans -->
+        <div id="loginSection" class="login"> <!-- Login form -->
+            <h2>Login</h2> <!-- Login form title for humans -->
+            <span>Username</span> <input type="text" id="usernameInput" placeholder="Enter username"> <!-- User inputs username -->
+            <span>Password</span> <input type="password" id="passwordInput" placeholder="Enter password"> <!-- User inputs password -->
+            <button onclick="login()">Login</button> <!-- User submits form -->
+            <p id="loginError" class="error"></p>  <!-- Displays error messages from route login -->
+        </div>
+        <div id="filtersSection" class="filters" style="display: none;"> <!-- Filters form, hidden until login -->
+            <h2>Filters</h2> <!-- Title for humans -->
+            <p><span>Departamento</span> <br> <select id="deptSelect"><option value="">Select Departamento</option></select></p> <!-- User filters by department -->
+            <p><span>Municipalidad</span> <br> <select id="muniSelect"><option value="">Select Municipalidad</option></select></p> <!-- User filters by municipality -->
+            <p><span>Partido</span> <br> <select id="partSelect"><option value="">Select Partido</option></select></p> <!-- User filters by political party -->
+            <p><button onclick="fetchResults()">Submit</button></p> <!-- User submits form, runs route results  U+26A1 -->
+            <p><button onclick="resetFilters()">Reset</button></p> <!-- User clears form -->
+
+        </div>
+        <div id="results" class="results"></div> <!-- Displays results -->
+        <div id="logout" class="logout" style="display: none;">  <!-- Logout button, hidden until login -->
+            <button onclick="logout()">Logout</button> <!-- User logs out -->
+        </div>
+    </div>
+    <script> // Javascript is not one of my strength, but here we go!!!     U+1F91E
+        const apiUrl = '';                  // Backend url, local
+        let isLoggedIn = false;             // Not logged in yet
+
+        // Kill preexisting session
+        async function clearSession() {
+            try {
+                const response = await fetch(`${apiUrl}/logout`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include'
+                });
+                const data = await response.json();
+                console.log('Clear session response:', data);
+            } catch (error) {
+                console.error('Error clearing session:', error);
+            }
+        }
+
+        // Fetch username and password from login form and validate
+        async function login() {
+            console.log('Login function called');
+            const usernameInput = document.getElementById('usernameInput');
+            const passwordInput = document.getElementById('passwordInput');
+            const loginError = document.getElementById('loginError');
+            const loginSection = document.getElementById('loginSection');
+
+            if (!usernameInput || !passwordInput || !loginError || !loginSection) {
+                console.error('Login inputs not found in DOM');
+                if (loginError) loginError.textContent = 'Internal error: Login fields missing';
+                return;
+            }
+
+            const username = usernameInput.value;
+            const password = passwordInput.value;
+            if (!username || !password) {
+                loginError.textContent = 'Please enter both username and password';
+                return;
+            }
+
+            // Authenticate
+            try {
+                const response = await fetch(`${apiUrl}/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password }),
+                    credentials: 'include'
+                });
+                const data = await response.json();
+                console.log('Login response:', data);
+                if (data.success) {
+                    isLoggedIn = true;
+                    loginSection.style.display = 'none';                                // Hide login form
+                    document.getElementById('filtersSection').style.display = 'block';  // Show filters form, populate filters
+                    document.getElementById('logout').style.display = 'block';  // Show logout button
+                    fetchDepartments();
+                    fetchParties();
+                } else {
+                    loginError.textContent = data.message || 'Invalid credentials';
+                }
+            } catch (error) {
+                console.error('Login fetch error:', error);
+                loginError.textContent = 'Error during login, please try again';
+            }
+        }
+
+        // End session, reset forms, reset fields
+        async function logout() {
+            try {
+                const response = await fetch(`${apiUrl}/logout`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include'
+                });
+                const data = await response.json();
+                console.log('Logout response:', data);
+                if (data.success) {
+                    isLoggedIn = false;
+                    document.getElementById('filtersSection').style.display = 'none';
+                    document.getElementById('results').innerHTML = '';
+                    document.getElementById('loginSection').style.display = 'block';
+                    document.getElementById('logout').style.display = 'none';
+                    document.getElementById('usernameInput').value = '';
+                    document.getElementById('passwordInput').value = '';
+                    document.getElementById('loginError').textContent = '';
+                    document.getElementById('deptSelect').value = '';
+                    document.getElementById('muniSelect').innerHTML = '<option value="">Select Municipalidad</option>';
+                    document.getElementById('partSelect').value = '';
+                }
+            } catch (error) {
+                console.error('Logout fetch error:', error);
+            }
+        }
+
+        // Fetch departments list from route departments
+        async function fetchDepartments() {
+            if (!isLoggedIn) return;
+            try {
+                const response = await fetch(`${apiUrl}/departments`, { credentials: 'include' });
+                const departments = await response.json();
+                const deptSelect = document.getElementById('deptSelect');
+                departments.forEach(dept => {
+                    const option = document.createElement('option');
+                    option.value = dept;
+                    option.textContent = dept;
+                    deptSelect.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Fetch departments error:', error);
+            }
+        }
+
+        // Fetch municipalities list from route municipalities
+        async function fetchMunicipalities() {
+            if (!isLoggedIn) return;
+            const deptSelect = document.getElementById('deptSelect');
+            const deptName = deptSelect.value;
+            const muniSelect = document.getElementById('muniSelect');
+            muniSelect.innerHTML = '<option value="">Select Municipalidad</option>';
+            if (deptName) {
+                try {
+                    const response = await fetch(`${apiUrl}/municipalities?dept_name=${encodeURIComponent(deptName)}`, { credentials: 'include' });
+                    const municipalities = await response.json();
+                    municipalities.forEach(muni => {
+                        const option = document.createElement('option');
+                        option.value = muni;
+                        option.textContent = muni;
+                        muniSelect.appendChild(option);
+                    });
+                } catch (error) {
+                    console.error('Fetch municipalities error:', error);
+                }
+            }
+        }
+
+        // Fetch political parties list from route parties
+        async function fetchParties() {
+            if (!isLoggedIn) return;
+            try {
+                const response = await fetch(`${apiUrl}/parties`, { credentials: 'include' });
+                const parties = await response.json();
+                const partSelect = document.getElementById('partSelect');
+                parties.forEach(part => {
+                    const option = document.createElement('option');
+                    option.value = part;
+                    option.textContent = part;
+                    partSelect.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Fetch parties error:', error);
+            }
+        }
+
+        // FETCH RESULTS FROM ROUTE RESULTS     U+26A1
+        async function fetchResults() {
+            if (!isLoggedIn) return;
+            const deptSelect = document.getElementById('deptSelect');
+            const muniSelect = document.getElementById('muniSelect');
+            const partSelect = document.getElementById('partSelect');
+            const resultsDiv = document.getElementById('results');
+            const deptName = deptSelect.value;
+            const muniName = muniSelect.value;
+            const partName = partSelect.value;
+
+            if (!deptName || !muniName || !partName) {
+                resultsDiv.innerHTML = '<p class="error">Please select all filters</p>';
+                return;
+            }
+
+            resultsDiv.innerHTML = '<p class="loading">Loading...</p>';
+
+           try {
+                const response = await fetch(`${apiUrl}/results?dept_name=${encodeURIComponent(deptName)}&muni_name=${encodeURIComponent(muniName)}&part_name=${encodeURIComponent(partName)}`, { credentials: 'include' });
+                const data = await response.json();
+                if (data.error) {
+                    resultsDiv.innerHTML = `<p class="error">${data.error}</p>`;
+                } else {
+                    console.log('Raw data:', JSON.stringify(data.results, null, 2));
+                    let html = `<h2>${deptName}<br> ${muniName}<br> ${partName}</h2>`;
+                    html += '<table><tr><th>NAME</th><th>DESC</th><th>MUNI</th><th>D_LN</th><th>D_DI</th><th>D_PA</th><th>PRES</th><th>TEAM</th></tr>';
+                    const descriptors = ['EMPADRONADOS', 'VOTOS TOTALES', 'VOTOS RECIBIDOS', 'PARTICIPACIÓN', 'EFICIENCIA'];
+                    descriptors.forEach(desc => {
+                        const normalizedDesc = desc.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(' ', '_');
+                        html += `<tr><td>${partName}</td><td>${desc}</td>`;
+                        ['MUNI', 'D_LN', 'D_DI', 'D_PA', 'PRES', 'TEAM'].forEach(ballot => {
+                            let value = data.results[ballot] ? data.results[ballot][normalizedDesc] : 0;
+                            if (value === undefined || value === null) {
+                                console.warn(`Key ${normalizedDesc} not found for ${ballot}, defaulting to 0`);
+                                value = 0;
+                            }
+                            if (desc === 'PARTICIPACIÓN' || desc === 'EFICIENCIA') {
+                                console.log(`Rendering ${desc} for ${ballot}: ${value}% (raw: ${data.results[ballot] ? data.results[ballot][normalizedDesc] : 'undefined'})`);
+                                value = (value || 0).toFixed(2);
+                            }
+                            html += `<td>${value}${desc.includes('PARTICIPACIÓN') || desc.includes('EFICIENCIA') ? '%' : ''}</td>`;
+                        });
+                        html += '</tr>';
+                    });
+                    html += '</table>';
+                    resultsDiv.innerHTML = html;
+                }
+                } catch (error) {
+                console.error('Fetch results error:', error);
+                resultsDiv.innerHTML = '<p class="error">Error fetching results</p>';
+            }
+        }
+
+        // Reset filters form
+        function resetFilters() {
+            document.getElementById('deptSelect').value = '';
+            document.getElementById('muniSelect').innerHTML = '<option value="">Select Municipalidad</option>';
+            document.getElementById('partSelect').value = '';
+            document.getElementById('results').innerHTML = '';
+        }
+
+        // Clear session on load
+        document.addEventListener('DOMContentLoaded', () => {
+            clearSession();
+            // Set municipalities filter to depend on departments filter
+            document.getElementById('deptSelect').addEventListener('change', fetchMunicipalities);
+        });
+    </script>
+</body>
+<!--
+I've coded many websites, but they had all been static.
+This is actually my first dynamic website, ever.
+I hope you like it!
+Regardless of the vintage crt lookalike style,
+which my wife doesn't like at all... XD
+-
+And this about it for my Final Project!
+Enjoy it!
+-->
+</html>
